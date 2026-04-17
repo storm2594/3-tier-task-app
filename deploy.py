@@ -344,12 +344,20 @@ def create_ecs_cluster_and_role(ecs_client, iam_client, cluster_name):
         clusters = ecs_client.describe_clusters(clusters=[cluster_name])
         if clusters['clusters'] and clusters['clusters'][0]['status'] == 'ACTIVE':
             logger.info(f"✅ ECS Cluster [{cluster_name}] already exists.")
+            try:
+                ecs_client.update_cluster_settings(
+                    cluster=cluster_name,
+                    settings=[{'name': 'containerInsights', 'value': 'enabled'}]
+                )
+            except Exception as e:
+                logger.warning(f"Could not update container insights: {e}")
         else:
             ecs_client.create_cluster(
                 clusterName=cluster_name,
+                settings=[{'name': 'containerInsights', 'value': 'enabled'}],
                 tags=[{'key': 'Name', 'value': cluster_name}]
             )
-            logger.info(f"✅ Created new ECS Cluster [{cluster_name}].")
+            logger.info(f"✅ Created new ECS Cluster [{cluster_name}] with Container Insights enabled.")
     except Exception as e:
         logger.warning(f"Error checking/creating cluster: {e}")
         
@@ -361,6 +369,23 @@ def deploy_service(ecs_client, logs_client, region, cluster_name, task_family, c
     try:
         logs_client.create_log_group(logGroupName=log_group, tags={'Name': log_group})
     except logs_client.exceptions.ResourceAlreadyExistsException: pass
+
+    # Setup Metric Filters for Log Groups
+    for level in ['ERROR', 'FATAL']:
+        try:
+            logs_client.put_metric_filter(
+                logGroupName=log_group,
+                filterName=f'{task_family}-{level.lower()}-count',
+                filterPattern=f'"{level}"',
+                metricTransformations=[{
+                    'metricName': f'{task_family}-{level.capitalize()}Count',
+                    'metricNamespace': 'TaskApp/Logs',
+                    'metricValue': '1',
+                    'defaultValue': 0.0
+                }]
+            )
+        except Exception as e:
+            logger.warning(f"Failed to create metric filter {level} for {log_group}: {e}")
 
     container_def = {'name': container_name, 'image': image_uri, 'portMappings': [{'containerPort': container_port, 'hostPort': container_port, 'protocol': 'tcp'}], 'essential': True, 'environment': env_vars, 'logConfiguration': {'logDriver': 'awslogs', 'options': {'awslogs-group': log_group, 'awslogs-region': region, 'awslogs-stream-prefix': 'ecs'}}}
     resp = ecs_client.register_task_definition(

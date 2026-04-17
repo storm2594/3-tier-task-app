@@ -44,8 +44,9 @@ The `deploy.py` script provisions, configures, and bootstraps the entire cloud i
 5. **Database Provisioning:** Spins up a protected Amazon RDS PostgreSQL instance.
 6. **Schema Migration:** Connects to the new RDS instance and automatically runs `schema.sql` to initialize tables.
 7. **Load Balancing:** Creates an ALB with target groups and path-based routing (`/api*` goes to backend, `/` goes to frontend).
-8. **Compute:** Deploys resilient AWS Fargate Tasks and Services.
-9. **Verification:** Waits for high availability, performs health checks, and returns your live public URLs.
+8. **Monitoring & Logging:** Automatically enables CloudWatch Metrics scraping via ECS Container Insights and CloudWatch Log Group Metric Filters for capturing `ERROR` and `FATAL` events.
+9. **Compute:** Deploys resilient AWS Fargate Tasks and Services.
+10. **Verification:** Waits for high availability, performs health checks, and returns your live public URLs.
 
 ### How to Deploy
 
